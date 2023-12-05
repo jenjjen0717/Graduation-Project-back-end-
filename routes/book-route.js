@@ -1,10 +1,23 @@
 const router = require("express").Router();
 const multer = require("multer");
-const fs = require("fs");
 var path = require("path");
 
 const Book = require("../models").bookModel;
 const bookValidation = require("../validation").bookValidation;
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "public/uploads");
+  },
+  filename: function (req, file, cb) {
+    cb(
+      null,
+      file.fieldname + "_" + Date.now() + path.extname(file.originalname)
+    );
+  },
+});
+
+let upload = multer({ storage: storage });
 
 router.use((req, res, next) => {
   console.log("request is coming to book api");
@@ -56,7 +69,7 @@ router.get("/info/:title", (req, res) => {
     });
 });
 
-router.post("/info", async (req, res) => {
+router.post("/info", upload.single("cover"), async (req, res) => {
   const { error } = bookValidation(req.body);
   if (error) return res.status(400).send(error.details[0].message);
 
@@ -67,9 +80,13 @@ router.post("/info", async (req, res) => {
   });
   if (bookExisted) return res.status(400).send("Book Existed");
 
-  let { title, author, status } = req.body;
+  let cover = req.file?.filename;
+  let title = req.body.title;
+  let author = req.body.author;
+  let status = req.body.status;
 
   let newBook = new Book({
+    cover,
     title,
     author,
     status,
@@ -79,11 +96,13 @@ router.post("/info", async (req, res) => {
   try {
     await newBook.save();
     res.status(200).send({
+      cover: req.file,
       title: req.body.title,
       author: req.body.author,
       status: req.body.status,
     });
   } catch (err) {
+    console.log(err);
     res.status(400).send("cannot save Book");
   }
 });
@@ -184,6 +203,28 @@ router.delete("/excerpt/:_id", async (req, res) => {
   } catch (err) {
     res.send(err);
   }
+});
+
+router.delete("/info/:_id", async (req, res) => {
+  let { _id } = req.params;
+
+  const bookExisted = await Book.findOne({
+    title: req.body.title,
+    author: req.body.author,
+    user: req.user._id,
+  });
+  if (bookExisted) return res.status(400).send("Book Existed");
+
+  Book.deleteOne({ _id })
+    .then(() => {
+      res.send("book deleted.");
+    })
+    .catch((e) => {
+      res.send({
+        success: false,
+        message: e,
+      });
+    });
 });
 
 module.exports = router;
