@@ -126,6 +126,35 @@ router.post("/excerpt/:title", async (req, res) => {
   }
 });
 
+router.post("/review/:title", async (req, res) => {
+  let { title } = req.params;
+
+  try {
+    let book = await Book.findOne({ title: title, user: req.user._id });
+
+    if (!book) {
+      res.status(404);
+      return res.json({ success: false, message: "Book not found" });
+    }
+
+    Book.findOneAndUpdate({ title: title }, req.body, {
+      new: true,
+      runValidators: true,
+    })
+      .then(() => {
+        res.send("success");
+      })
+      .catch((e) => {
+        res.send({
+          success: false,
+          message: e,
+        });
+      });
+  } catch (err) {
+    res.send(err);
+  }
+});
+
 router.patch("/info/:title", async (req, res) => {
   const { error } = bookValidation(req.body);
   if (error) return res.status(400).send(error.details[0].message);
